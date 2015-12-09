@@ -1,0 +1,96 @@
+package com.sparktraining.pairrdddemo
+
+import org.apache.spark.{SparkConf, SparkContext}
+
+/**
+ * Created by vishnu on 03/12/15.
+ */
+object PairRddDemo {
+
+  def createSparkContextWithLocalEnv(): SparkContext ={
+    val conf = new SparkConf().setAppName("PairRDDDemo").setMaster("local")
+    val sc = new SparkContext(conf)
+    sc
+  }
+
+  def main(args: Array[String]) {
+
+    val sc = createSparkContextWithLocalEnv()
+
+    // The file contains data in the below format
+    // Date, Time , Customer Id , Product Id, No Of Items Bought , Amount
+    val tranFile = sc.textFile("/Users/vishnu/Documents/spark/pipelines/SparkTutorials/src/main/resources/data_transactions.txt")
+    val tranData = tranFile.map(_.split("#"))
+    var tranByCust = tranData.map(tran => (tran(2).toInt,tran))
+
+    tranByCust.cache()
+    // Find the total number of Customers who purchased
+
+    println("No of unique customers who purchased "+tranByCust.keys.distinct.count)
+
+    //How many different products each customer has bought
+
+    println("No of Products each customer bought "+ tranByCust.countByKey)
+
+    //Reward a gift for the customer who had bought the most variety of products.
+
+    val (custid,products) = tranByCust.countByKey.toSeq.sortBy(_._2).last
+
+    println("The customer who purchased the most no proucts " + custid + " Products Purchased " + products)
+
+    //List Out the transaction made by the customer who purchased the most of products.
+
+    val temp = 53
+
+    tranByCust.lookup(temp).foreach{x => println(x.mkString("#"))}
+
+
+    //Apply Discount of 5 % if a customer has purchased 2 or more of product 25
+
+    tranByCust = tranByCust.mapValues{tran =>
+
+      if(tran(3).toInt == 25 && tran(4).toDouble > 1)  tran(5) = (tran(5).toDouble * 0.5).toString
+
+      tran
+
+    }
+
+    println("Transactions Count before giving Complementery products" + tranByCust.count)
+
+    //Give a complementary product 1(Eraser) for customers who bought more than 4 quantity of
+    // product 81(Pencil)
+
+    tranByCust = tranByCust.flatMapValues{tran =>
+
+      if(tran(3).toInt == 81 && tran(4).toDouble > 4) {
+        val cloned = tran.clone()
+        cloned(3) = "1";cloned(5)="0.0";cloned(4)="1"
+        List(tran,cloned)
+      }
+      else
+        List(tran)
+
+    }
+
+    println("Transactions Count after giving Complementery products" + tranByCust.count)
+
+
+    //Find the customers who spent the most
+
+    val amount = tranByCust.mapValues(tran => tran(5).toDouble)
+
+    val totals = amount.foldByKey(0)((x,y) => x+y).collect
+
+    val customerSpentMost = totals.toSeq.sortBy(_._2).last
+
+
+    println(" The customer who spent the most "+customerSpentMost)
+
+
+    // Find the total products sold
+
+    val prods = tranByCust.aggregateByKey(List[String]())((prod,tran)=> (prod ::: List(tran(3))),(prod1,prod2) => prod1 ::: prod2)
+
+  }
+
+}
