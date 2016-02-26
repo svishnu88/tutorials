@@ -1,0 +1,37 @@
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.{SparkConf, SparkContext}
+/**
+ * Created by vishnu on 26/02/16.
+ */
+object DateExperiments {
+
+  def main(args: Array[String]) {
+
+    val conf = new SparkConf()
+    conf.setAppName("InternShip")
+    conf.setMaster("local[*]")
+    val sc = new SparkContext(conf)
+    val sqlContext = new SQLContext(sc)
+
+    import sqlContext.implicits._
+
+    val dateRDD = sc.parallelize(List("10-02-2014","20-01-2015"))
+
+    val dateDF = dateRDD.map(x => dummy(x)).toDF
+
+    /*dateDF.select(to_utc_timestamp(unix_timestamp('date,"dd-mm-yyyy"),"dd-mm-yyyy"))
+          .show()*/
+
+    import org.apache.spark.sql.functions._
+
+    dateDF.withColumn("dateFormat", from_unixtime(unix_timestamp('date,"dd-MM-yyyy")))
+          .withColumn("currentDate",from_unixtime(unix_timestamp()))
+          .withColumn("diff",datediff('currentDate,'dateFormat)/365)
+          .show()
+
+
+  }
+
+  case class dummy(date:String)
+
+}
